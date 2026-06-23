@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Invoices</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧾 All Invoices</h1>
+            <nav>
+                <a href="/">New Invoice</a>
+                <a href="/invoices">All Invoices</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="invoices-list">
+                {% if invoices %}
+                <table class="invoice-list-table">
+                    <thead>
+                        <tr>
+                            <th>Invoice #</th>
+                            <th>Customer</th>
+                            <th>Date</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for invoice in invoices|reverse %}
+                        <tr>
+                            <td>{{ invoice.id }}</td>
+                            <td>{{ invoice.customer_name }}</td>
+                            <td>{{ invoice.date[:10] }}</td>
+                            <td>₹{{ "%.2f"|format(invoice.total) }}</td>
+                            <td><span class="status-badge">✓ {{ invoice.status }}</span></td>
+                            <td><a href="/invoice/{{ invoice.id }}" class="view-btn">View</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="empty-state">
+                    <p>No invoices yet. Create your first invoice!</p>
+                    <a href="/" class="new-btn">Create Invoice</a>
+                </div>
+                {% endif %}
+            </div>
+        </main>
+    </div>
+</body>
+</html>

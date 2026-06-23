@@ -1,0 +1,22 @@
+{
+  "version": 2,  // Vercel configuration version
+  
+  "builds": [
+    {
+      "src": "app.py",  // Main application file
+      "use": "@vercel/python"  // Python runtime use karein
+    }
+  ],
+  
+  "routes": [
+    {
+      "src": "/(.*)",  // All routes
+      "dest": "app.py"  // Flask app handle karega
+    }
+  ],
+  
+  "env": {
+    "FLASK_ENV": "production",
+    "PYTHONUNBUFFERED": "true"
+  }
+}

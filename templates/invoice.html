@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice #{{ invoice.id }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧾 Invoice</h1>
+            <nav>
+                <a href="/">New Invoice</a>
+                <a href="/invoices">All Invoices</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="invoice-container">
+                <div class="invoice-header">
+                    <div class="invoice-title">
+                        <h2>INVOICE #{{ invoice.id }}</h2>
+                        <p>Date: {{ invoice.date }}</p>
+                    </div>
+                    <div class="invoice-status">
+                        <span class="status-badge">✓ Paid</span>
+                    </div>
+                </div>
+
+                <div class="customer-info">
+                    <h3>Bill To:</h3>
+                    <p><strong>{{ invoice.customer_name }}</strong></p>
+                    {% if invoice.customer_email %}
+                    <p>Email: {{ invoice.customer_email }}</p>
+                    {% endif %}
+                    {% if invoice.customer_phone %}
+                    <p>Phone: {{ invoice.customer_phone }}</p>
+                    {% endif %}
+                </div>
+
+                <table class="invoice-table">
+                    <thead>
+                        <tr>
+                            <th>Item</th>
+                            <th>Quantity</th>
+                            <th>Price</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in invoice.items %}
+                        <tr>
+                            <td>{{ item.name }}</td>
+                            <td>{{ item.quantity }}</td>
+                            <td>₹{{ "%.2f"|format(item.price) }}</td>
+                            <td>₹{{ "%.2f"|format(item.quantity * item.price) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="text-right"><strong>Subtotal:</strong></td>
+                            <td>₹{{ "%.2f"|format(invoice.subtotal) }}</td>
+                        </tr>
+                        <tr>
+                            <td colspan="3" class="text-right"><strong>Tax ({{ invoice.tax_rate }}%):</strong></td>
+                            <td>₹{{ "%.2f"|format(invoice.tax) }}</td>
+                        </tr>
+                        <tr class="total-row">
+                            <td colspan="3" class="text-right"><strong>Total:</strong></td>
+                            <td><strong>₹{{ "%.2f"|format(invoice.total) }}</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="invoice-actions">
+                    <button onclick="window.print()" class="print-btn">🖨️ Print Invoice</button>
+                    <a href="/" class="new-btn">+ New Invoice</a>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

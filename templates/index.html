@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Billing App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧾 Simple Billing App</h1>
+            <nav>
+                <a href="/">New Invoice</a>
+                <a href="/invoices">All Invoices</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="billing-form">
+                <h2>Create New Invoice</h2>
+                
+                <div class="form-section">
+                    <h3>Customer Details</h3>
+                    <div class="form-group">
+                        <label for="customer_name">Customer Name *</label>
+                        <input type="text" id="customer_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="customer_email">Email</label>
+                        <input type="email" id="customer_email">
+                    </div>
+                    <div class="form-group">
+                        <label for="customer_phone">Phone</label>
+                        <input type="text" id="customer_phone">
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Items</h3>
+                    <div id="items-container">
+                        <div class="item-row">
+                            <input type="text" class="item-name" placeholder="Item name" value="Product 1">
+                            <input type="number" class="item-quantity" placeholder="Qty" value="1" min="1">
+                            <input type="number" class="item-price" placeholder="Price" value="100" min="0" step="0.01">
+                            <span class="item-total">₹100.00</span>
+                            <button type="button" class="remove-item" onclick="removeItem(this)">✕</button>
+                        </div>
+                    </div>
+                    <button type="button" class="add-item" onclick="addItem()">+ Add Item</button>
+                </div>
+
+                <div class="form-section">
+                    <h3>Tax Details</h3>
+                    <div class="form-group">
+                        <label for="tax_rate">Tax Rate (%)</label>
+                        <input type="number" id="tax_rate" value="10" min="0" max="100" step="0.01" onchange="calculateTotal()">
+                    </div>
+                </div>
+
+                <div class="summary">
+                    <div class="summary-row">
+                        <span>Subtotal:</span>
+                        <span id="subtotal">₹0.00</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Tax:</span>
+                        <span id="tax-amount">₹0.00</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Total:</span>
+                        <span id="total">₹0.00</span>
+                    </div>
+                </div>
+
+                <button class="generate-btn" onclick="generateInvoice()">Generate Invoice</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Add item row
+        function addItem() {
+            const container = document.getElementById('items-container');
+            const row = document.createElement('div');
+            row.className = 'item-row';
+            row.innerHTML = `
+                <input type="text" class="item-name" placeholder="Item name" value="Product ${container.children.length + 1}">
+                <input type="number" class="item-quantity" placeholder="Qty" value="1" min="1" onchange="calculateTotal()">
+                <input type="number" class="item-price" placeholder="Price" value="100" min="0" step="0.01" onchange="calculateTotal()">
+                <span class="item-total">₹100.00</span>
+                <button type="button" class="remove-item" onclick="removeItem(this)">✕</button>
+            `;
+            container.appendChild(row);
+            calculateTotal();
+        }
+
+        // Remove item row
+        function removeItem(button) {
+            const container = document.getElementById('items-container');
+            if (container.children.length > 1) {
+                button.parentElement.remove();
+                calculateTotal();
+            }
+        }
+
+        // Calculate total
+        function calculateTotal() {
+            const rows = document.querySelectorAll('.item-row');
+            let subtotal = 0;
+
+            rows.forEach(row => {
+                const qty = parseFloat(row.querySelector('.item-quantity').value) || 0;
+                const price = parseFloat(row.querySelector('.item-price').value) || 0;
+                const total = qty * price;
+                row.querySelector('.item-total').textContent = '₹' + total.toFixed(2);
+                subtotal += total;
+            });
+
+            const taxRate = parseFloat(document.getElementById('tax_rate').value) || 0;
+            const taxAmount = subtotal * (taxRate / 100);
+            const total = subtotal + taxAmount;
+
+            document.getElementById('subtotal').textContent = '₹' + subtotal.toFixed(2);
+            document.getElementById('tax-amount').textContent = '₹' + taxAmount.toFixed(2);
+            document.getElementById('total').textContent = '₹' + total.toFixed(2);
+        }
+
+        // Generate invoice
+        async function generateInvoice() {
+            const customerName = document.getElementById('customer_name').value.trim();
+            if (!customerName) {
+                alert('Please enter customer name');
+                return;
+            }
+
+            const rows = document.querySelectorAll('.item-row');
+            const items = [];
+            rows.forEach(row => {
+                const name = row.querySelector('.item-name').value.trim();
+                const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
+                const price = parseFloat(row.querySelector('.item-price').value) || 0;
+                if (name && quantity > 0 && price > 0) {
+                    items.push({ name, quantity, price });
+                }
+            });
+
+            if (items.length === 0) {
+                alert('Please add at least one item');
+                return;
+            }
+
+            const subtotal = parseFloat(document.getElementById('subtotal').textContent.replace('₹', ''));
+            const taxRate = parseFloat(document.getElementById('tax_rate').value) || 0;
+            const tax = subtotal * (taxRate / 100);
+            const total = subtotal + tax;
+
+            const invoiceData = {
+                customer_name: customerName,
+                customer_email: document.getElementById('customer_email').value.trim(),
+                customer_phone: document.getElementById('customer_phone').value.trim(),
+                items: items,
+                subtotal: subtotal,
+                tax: tax,
+                tax_rate: taxRate,
+                total: total
+            };
+
+            try {
+                const response = await fetch('/generate_invoice', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(invoiceData)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    window.location.href = '/invoice/' + result.invoice_id;
+                } else {
+                    alert('Error generating invoice: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Auto calculate on load
+        window.onload = function() {
+            calculateTotal();
+        };
+    </script>
+</body>
+</html>

@@ -49,14 +49,21 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for item in invoice.items %}
-                        <tr>
-                            <td>{{ item.name }}</td>
-                            <td>{{ item.quantity }}</td>
-                            <td>₹{{ "%.2f"|format(item.price) }}</td>
-                            <td>₹{{ "%.2f"|format(item.quantity * item.price) }}</td>
-                        </tr>
-                        {% endfor %}
+                        <!-- ✅ FIX: 'items' ki jagah 'item_list' use karein -->
+                        {% if invoice.item_list and invoice.item_list|length > 0 %}
+                            {% for item in invoice.item_list %}
+                            <tr>
+                                <td>{{ item.name }}</td>
+                                <td>{{ item.quantity }}</td>
+                                <td>₹{{ "%.2f"|format(item.price) }}</td>
+                                <td>₹{{ "%.2f"|format(item.quantity * item.price) }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" style="text-align: center; color: #999;">No items found</td>
+                            </tr>
+                        {% endif %}
                     </tbody>
                     <tfoot>
                         <tr>

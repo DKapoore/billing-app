@@ -20,7 +20,6 @@
             <div class="billing-form">
                 <h2>Create New Invoice</h2>
                 
-                <!-- Error/Success Messages -->
                 <div id="message-container"></div>
                 
                 <div class="form-section">
@@ -82,13 +81,13 @@
     </div>
 
     <script>
-        // Add item row
         function addItem() {
             const container = document.getElementById('items-container');
+            const count = container.children.length + 1;
             const row = document.createElement('div');
             row.className = 'item-row';
             row.innerHTML = `
-                <input type="text" class="item-name" placeholder="Item name" value="Product ${container.children.length + 1}">
+                <input type="text" class="item-name" placeholder="Item name" value="Product ${count}">
                 <input type="number" class="item-quantity" placeholder="Qty" value="1" min="1" onchange="calculateTotal()">
                 <input type="number" class="item-price" placeholder="Price" value="100" min="0" step="0.01" onchange="calculateTotal()">
                 <span class="item-total">₹100.00</span>
@@ -98,7 +97,6 @@
             calculateTotal();
         }
 
-        // Remove item row
         function removeItem(button) {
             const container = document.getElementById('items-container');
             if (container.children.length > 1) {
@@ -107,7 +105,6 @@
             }
         }
 
-        // Calculate total
         function calculateTotal() {
             const rows = document.querySelectorAll('.item-row');
             let subtotal = 0;
@@ -129,7 +126,6 @@
             document.getElementById('total').textContent = '₹' + total.toFixed(2);
         }
 
-        // Show message
         function showMessage(message, type = 'error') {
             const container = document.getElementById('message-container');
             const color = type === 'success' ? '#27ae60' : '#e74c3c';
@@ -143,7 +139,6 @@
             }, 5000);
         }
 
-        // Generate invoice with proper error handling
         async function generateInvoice() {
             const customerName = document.getElementById('customer_name').value.trim();
             if (!customerName) {
@@ -160,7 +155,11 @@
                 const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
                 const price = parseFloat(row.querySelector('.item-price').value) || 0;
                 if (name && quantity > 0 && price > 0) {
-                    items.push({ name, quantity, price });
+                    items.push({ 
+                        name: name, 
+                        quantity: quantity, 
+                        price: price 
+                    });
                     hasValidItem = true;
                 }
             });
@@ -170,6 +169,7 @@
                 return;
             }
 
+            // Calculate totals
             const subtotal = parseFloat(document.getElementById('subtotal').textContent.replace('₹', ''));
             const taxRate = parseFloat(document.getElementById('tax_rate').value) || 0;
             const tax = subtotal * (taxRate / 100);
@@ -187,6 +187,8 @@
             };
 
             try {
+                console.log('Sending data:', invoiceData); // Debug log
+                
                 const response = await fetch('/generate_invoice', {
                     method: 'POST',
                     headers: {
@@ -195,18 +197,8 @@
                     body: JSON.stringify(invoiceData)
                 });
 
-                // Check if response is OK
-                if (!response.ok) {
-                    const text = await response.text();
-                    try {
-                        const errorData = JSON.parse(text);
-                        throw new Error(errorData.error || 'Server error');
-                    } catch (e) {
-                        throw new Error('Server error: ' + text.substring(0, 100));
-                    }
-                }
-
                 const result = await response.json();
+                console.log('Response:', result); // Debug log
                 
                 if (result.success) {
                     showMessage('Invoice created successfully! Redirecting...', 'success');
@@ -217,12 +209,11 @@
                     showMessage('Error: ' + (result.error || 'Unknown error'), 'error');
                 }
             } catch (error) {
-                showMessage('Error: ' + error.message, 'error');
                 console.error('Error:', error);
+                showMessage('Error: ' + error.message, 'error');
             }
         }
 
-        // Auto calculate on load
         window.onload = function() {
             calculateTotal();
         };

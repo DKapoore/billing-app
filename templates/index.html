@@ -20,6 +20,9 @@
             <div class="billing-form">
                 <h2>Create New Invoice</h2>
                 
+                <!-- Error/Success Messages -->
+                <div id="message-container"></div>
+                
                 <div class="form-section">
                     <h3>Customer Details</h3>
                     <div class="form-group">
@@ -126,27 +129,44 @@
             document.getElementById('total').textContent = '₹' + total.toFixed(2);
         }
 
-        // Generate invoice
+        // Show message
+        function showMessage(message, type = 'error') {
+            const container = document.getElementById('message-container');
+            const color = type === 'success' ? '#27ae60' : '#e74c3c';
+            container.innerHTML = `
+                <div style="background: ${color}; color: white; padding: 12px; border-radius: 5px; margin-bottom: 20px;">
+                    ${message}
+                </div>
+            `;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        // Generate invoice with proper error handling
         async function generateInvoice() {
             const customerName = document.getElementById('customer_name').value.trim();
             if (!customerName) {
-                alert('Please enter customer name');
+                showMessage('Please enter customer name', 'error');
                 return;
             }
 
             const rows = document.querySelectorAll('.item-row');
             const items = [];
+            let hasValidItem = false;
+            
             rows.forEach(row => {
                 const name = row.querySelector('.item-name').value.trim();
                 const quantity = parseFloat(row.querySelector('.item-quantity').value) || 0;
                 const price = parseFloat(row.querySelector('.item-price').value) || 0;
                 if (name && quantity > 0 && price > 0) {
                     items.push({ name, quantity, price });
+                    hasValidItem = true;
                 }
             });
 
-            if (items.length === 0) {
-                alert('Please add at least one item');
+            if (!hasValidItem || items.length === 0) {
+                showMessage('Please add at least one valid item', 'error');
                 return;
             }
 
@@ -175,14 +195,30 @@
                     body: JSON.stringify(invoiceData)
                 });
 
+                // Check if response is OK
+                if (!response.ok) {
+                    const text = await response.text();
+                    try {
+                        const errorData = JSON.parse(text);
+                        throw new Error(errorData.error || 'Server error');
+                    } catch (e) {
+                        throw new Error('Server error: ' + text.substring(0, 100));
+                    }
+                }
+
                 const result = await response.json();
+                
                 if (result.success) {
-                    window.location.href = '/invoice/' + result.invoice_id;
+                    showMessage('Invoice created successfully! Redirecting...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/invoice/' + result.invoice_id;
+                    }, 1500);
                 } else {
-                    alert('Error generating invoice: ' + result.error);
+                    showMessage('Error: ' + (result.error || 'Unknown error'), 'error');
                 }
             } catch (error) {
-                alert('Error: ' + error.message);
+                showMessage('Error: ' + error.message, 'error');
+                console.error('Error:', error);
             }
         }
 

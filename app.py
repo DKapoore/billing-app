@@ -3,75 +3,44 @@ import json
 import os
 from datetime import datetime
 import uuid
-import psycopg2
-from psycopg2.extras import Json
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key')
 
-# Database configuration
-DATABASE_URL = os.environ.get('DATABASE_URL')
+# Vercel environment detection
+def is_vercel():
+    return os.environ.get('VERCEL_ENV') or os.environ.get('NOW_REGION')
 
-def get_db_connection():
-    """Get database connection"""
-    if DATABASE_URL:
-        return psycopg2.connect(DATABASE_URL)
-    return None
+def get_invoices_path():
+    """Get the correct path for invoices.json"""
+    if is_vercel():
+        return '/tmp/invoices.json'
+    return 'invoices.json'
 
-def init_db():
-    """Initialize database table"""
-    conn = get_db_connection()
-    if conn:
-        try:
-            cur = conn.cursor()
-            cur.execute('''
-                CREATE TABLE IF NOT EXISTS invoices (
-                    id VARCHAR(20) PRIMARY KEY,
-                    data JSONB NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            conn.commit()
-            cur.close()
-            conn.close()
-            print("Database initialized successfully")
-        except Exception as e:
-            print(f"Database init error: {e}")
+INVOICES_FILE = get_invoices_path()
 
 def load_invoices():
-    """Load invoices from database"""
-    invoices = []
-    conn = get_db_connection()
-    if conn:
-        try:
-            cur = conn.cursor()
-            cur.execute('SELECT data FROM invoices ORDER BY created_at DESC')
-            rows = cur.fetchall()
-            invoices = [row[0] for row in rows]
-            cur.close()
-            conn.close()
-        except Exception as e:
-            print(f"Error loading invoices: {e}")
-    return invoices
+    """Load invoices from JSON file"""
+    try:
+        if os.path.exists(INVOICES_FILE):
+            with open(INVOICES_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error loading invoices: {e}")
+    return []
 
-def save_invoice(invoice):
-    """Save invoice to database"""
-    conn = get_db_connection()
-    if conn:
-        try:
-            cur = conn.cursor()
-            cur.execute(
-                'INSERT INTO invoices (id, data) VALUES (%s, %s)',
-                (invoice['id'], Json(invoice))
-            )
-            conn.commit()
-            cur.close()
-            conn.close()
-            return True
-        except Exception as e:
-            print(f"Error saving invoice: {e}")
-            return False
-    return False
+def save_invoices(invoices):
+    """Save invoices to JSON file"""
+    try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(INVOICES_FILE), exist_ok=True)
+        
+        with open(INVOICES_FILE, 'w') as f:
+            json.dump(invoices, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error saving invoices: {e}")
+        return False
 
 @app.route('/')
 def index():
@@ -79,19 +48,36 @@ def index():
 
 @app.route('/generate_invoice', methods=['POST'])
 def generate_invoice():
+    """Generate a new invoice"""
     try:
-        data = request.json
+        # Get JSON data
+        data = request.get_json()
         
+        if not data:
+            return jsonify({
+                'success': False, 
+                'error': 'No data provided'
+            }), 400
+        
+        # Validate customer name
         customer_name = data.get('customer_name', '').strip()
         if not customer_name:
-            return jsonify({'success': False, 'error': 'Customer name is required'}), 400
+            return jsonify({
+                'success': False, 
+                'error': 'Customer name is required'
+            }), 400
         
+        # Validate items
         items = data.get('items', [])
-        if not items:
-            return jsonify({'success': False, 'error': 'At least one item is required'}), 400
+        if not items or len(items) == 0:
+            return jsonify({
+                'success': False, 
+                'error': 'At least one item is required'
+            }), 400
         
+        # Create invoice object
         invoice = {
-            'id': str(uuid.uuid4())[:8],
+            'id': str(uuid.uuid4())[:8].upper(),
             'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'customer_name': customer_name,
             'customer_email': data.get('customer_email', ''),
@@ -104,13 +90,28 @@ def generate_invoice():
             'status': 'paid'
         }
         
-        if save_invoice(invoice):
-            return jsonify({'success': True, 'invoice_id': invoice['id']})
+        # Save to storage
+        invoices = load_invoices()
+        invoices.append(invoice)
+        
+        if save_invoices(invoices):
+            return jsonify({
+                'success': True, 
+                'invoice_id': invoice['id'],
+                'message': 'Invoice created successfully'
+            })
         else:
-            return jsonify({'success': False, 'error': 'Database error'}), 500
+            return jsonify({
+                'success': False, 
+                'error': 'Failed to save invoice'
+            }), 500
     
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
+        print(f"Error in generate_invoice: {str(e)}")
+        return jsonify({
+            'success': False, 
+            'error': str(e)
+        }), 400
 
 @app.route('/invoices')
 def view_invoices():
@@ -125,14 +126,41 @@ def view_invoice(invoice_id):
     if invoice:
         return render_template('invoice.html', invoice=invoice)
     else:
-        return "Invoice not found", 404
+        return render_template('invoice.html', invoice=None, error='Invoice not found')
 
 @app.route('/api/invoices')
 def get_invoices_api():
-    return jsonify(load_invoices())
+    try:
+        invoices = load_invoices()
+        return jsonify(invoices)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-# Initialize database on startup
-init_db()
+@app.route('/api/invoice/<invoice_id>')
+def get_invoice_api(invoice_id):
+    try:
+        invoices = load_invoices()
+        invoice = next((inv for inv in invoices if inv['id'] == invoice_id), None)
+        
+        if invoice:
+            return jsonify(invoice)
+        else:
+            return jsonify({'error': 'Invoice not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Health check endpoint
+@app.route('/health')
+def health():
+    return jsonify({
+        'status': 'healthy',
+        'environment': 'vercel' if is_vercel() else 'local',
+        'storage': '/tmp' if is_vercel() else 'local'
+    })
+
+# Vercel serverless handler
+def handler(request, context):
+    return app(request, context)
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
